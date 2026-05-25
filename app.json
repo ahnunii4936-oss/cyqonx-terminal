@@ -4,35 +4,19 @@
     "slug": "cyqonx-terminal",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#F2F0EE"
-    },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.cyqonx.terminal",
-      "infoPlist": {
-        "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true
-        }
-      }
+      "bundleIdentifier": "com.cyqonx.terminal"
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#F2F0EE"
-      },
       "package": "com.cyqonx.terminal",
       "permissions": ["INTERNET"]
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
-    "plugins": [
-      "expo-router"
-    ]
+    "extra": {
+      "eas": {
+        "projectId": "ee006d3e-4a78-4080-8427-e195e1087ebd"
+      }
+    }
   }
 }
