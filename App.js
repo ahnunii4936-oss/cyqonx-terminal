@@ -149,128 +149,143 @@ function Spark({data,color,height=60}){
   );
 }
 
-// ── HOME ──────────────────────────────────────────────────────────────────────
+// ── Smooth bezier chart path from data array ─────────────────────────────────
+function bezierPath(data,cw,ch){
+  if(!data||data.length<2)return'';
+  const mn=Math.min(...data),mx=Math.max(...data),rng=mx-mn||1;
+  const pts=data.map((v,i)=>({
+    x:(i/(data.length-1))*cw,
+    y:ch-((v-mn)/rng)*ch*0.80-ch*0.10,
+  }));
+  let d='M'+pts[0].x.toFixed(1)+' '+pts[0].y.toFixed(1);
+  for(let i=1;i<pts.length;i++){
+    const p0=pts[i-1],p1=pts[i];
+    const cx=(p0.x+p1.x)/2;
+    d+=' C'+cx.toFixed(1)+' '+p0.y.toFixed(1)+' '+cx.toFixed(1)+' '+p1.y.toFixed(1)+' '+p1.x.toFixed(1)+' '+p1.y.toFixed(1);
+  }
+  return d;
+}
+
+// ── HOME / DASHBOARD ──────────────────────────────────────────────────────────
 function HomePage({price,hist,H,z,setPage,sym,wsStatus,calibStatus}){
-  const [tf,setTf]=useState('1D');
-  const change=hist.length>1?price-hist[0]:0;
-  const pct=hist.length>1?(change/hist[0])*100:0;
-  const isUp=change>=0;
-  const regime=H>0.6?'TRENDING':H<0.4?'MEAN REV':'NEUTRAL';
-  const rColor=H>0.6?C.red:H<0.4?C.grn:C.gld;
   const fmt=v=>sym.id==='XAU'?'$'+v.toFixed(2):'$'+Math.round(v).toLocaleString();
-  const tfs=['1H','4H','1D','1W','1M'];
+
+  // Dashboard metrics derived from OU data
+  const phase=price>sym.upper?'III':price<sym.lower?'I':'II';
+  const meanDev=sym.middle>0?Math.abs((price-sym.middle)/sym.middle*100).toFixed(1)+'%':'—';
+  const eqStatus=Math.abs(z)<1?'ACTIVE':'DORMANT';
+  const eqColor=Math.abs(z)<1?C.grn:C.red;
+
+  const chartW=W-32;const chartH=200;
+  const sparseHist=hist.filter((_,i)=>i%Math.max(1,Math.floor(hist.length/60))===0).slice(-60);
+  const chartPath=bezierPath(sparseHist,chartW-8,chartH-24);
+
+  const books=[
+    {label:sym.sub,sub:'LQ Channel',color:C.d2,accent:C.grn},
+    {label:'REGIME',sub:H>0.6?'TRENDING':H<0.4?'MEAN REV':'NEUTRAL',color:C.d2,accent:H>0.6?C.red:H<0.4?C.grn:C.gld},
+    {label:'HURST',sub:'H = '+H.toFixed(3),color:C.d2,accent:C.blu},
+    {label:'SIGNAL',sub:(z>=0?'+':'')+z.toFixed(2)+' σ',color:C.d2,accent:Math.abs(z)>2?C.red:Math.abs(z)>1?C.gld:C.grn},
+  ];
 
   return(
     <ScrollView showsVerticalScrollIndicator={false}>
-      {/* Welcome */}
-      <View style={{paddingBottom:14}}>
-        <Text style={{fontSize:9,letterSpacing:2,color:C.d3,textTransform:'uppercase',marginBottom:4}}>Welcome back</Text>
-        <View style={{flexDirection:'row',alignItems:'center',gap:10}}>
-          <View style={[{width:34,height:34,borderRadius:11,backgroundColor:C.card,alignItems:'center',justifyContent:'center'},shadowSm]}>
-            <Text style={{fontSize:14}}>🪐</Text>
-          </View>
-          <View>
-            <Text style={{fontSize:9,color:C.d3,letterSpacing:1}}>CYQONX</Text>
-            <Text style={{fontSize:16,fontWeight:'700',color:C.dark}}>Choux Trader</Text>
-          </View>
-          <Btn style={{marginLeft:'auto',paddingHorizontal:14,paddingVertical:7}}>
-            <Text style={{fontSize:10,fontWeight:'700',color:C.d2,letterSpacing:1}}>Portfolio</Text>
-          </Btn>
+
+      {/* Dashboard title + live badge */}
+      <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:22}}>
+        <Text style={{fontFamily:'Georgia',fontStyle:'italic',fontSize:30,color:C.dark,letterSpacing:1}}>Dashboard</Text>
+        <View style={{flexDirection:'row',alignItems:'center',gap:5,backgroundColor:C.bg2,borderRadius:20,paddingHorizontal:11,paddingVertical:5,
+          shadowColor:'#2F2926',shadowOffset:{width:3,height:3},shadowOpacity:0.14,shadowRadius:6,elevation:3}}>
+          <View style={{width:5,height:5,borderRadius:3,backgroundColor:wsStatus==='LIVE'?C.grn:C.gld}}/>
+          <Text style={{fontSize:8,fontWeight:'700',letterSpacing:1.5,color:C.d2}}>{wsStatus}</Text>
         </View>
       </View>
 
-      {/* Price dark card */}
-      <View style={[{backgroundColor:C.dark,borderRadius:24,padding:18,marginBottom:12,overflow:'hidden'},shadowDk]}>
-        <View style={{flexDirection:'row',alignItems:'flex-start',justifyContent:'space-between',marginBottom:12}}>
-          <View style={{flexDirection:'row',alignItems:'center',gap:10}}>
-            <View style={{width:38,height:38,borderRadius:19,backgroundColor:'rgba(245,244,241,0.10)',alignItems:'center',justifyContent:'center'}}>
-              <Text style={{fontSize:sym.id==='XAU'?11:16,fontWeight:'700',color:'#F5F4F1'}}>{sym.icon}</Text>
-            </View>
-            <View>
-              <Text style={{fontSize:13,fontWeight:'600',color:'#F5F4F1'}}>{sym.label}</Text>
-              <Text style={{fontSize:10,color:'rgba(245,244,241,0.45)'}}>Real-time Price</Text>
-            </View>
-          </View>
-          <View style={{flexDirection:'row',alignItems:'center',gap:4,backgroundColor:'rgba(245,244,241,0.09)',borderRadius:20,paddingHorizontal:10,paddingVertical:5}}>
-            <View style={{width:5,height:5,borderRadius:3,backgroundColor:wsStatus==='LIVE'?C.grnL:C.gld}}/>
-            <Text style={{fontSize:9,fontWeight:'600',color:'rgba(245,244,241,0.82)'}}>{wsStatus}</Text>
-          </View>
-        </View>
-        <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
-          <View>
-            <Text style={{fontSize:8,color:'rgba(245,244,241,0.38)',letterSpacing:2,marginBottom:3}}>LAST PRICE</Text>
-            <Text style={{fontSize:34,fontWeight:'300',color:'#F5F4F1',letterSpacing:-1}}>{fmt(price)}</Text>
-            <Text style={{fontSize:12,color:isUp?C.grnL:C.redL,marginTop:3}}>{isUp?'+':''}{change.toFixed(2)} ({isUp?'+':''}{pct.toFixed(2)}%)</Text>
-          </View>
-          <View style={{alignItems:'flex-end'}}>
-            <Text style={{fontSize:8,color:'rgba(245,244,241,0.38)',letterSpacing:2,marginBottom:3}}>REGIME</Text>
-            <Text style={{fontSize:13,fontWeight:'700',color:rColor}}>{regime}</Text>
-            <Text style={{fontSize:9,color:'rgba(245,244,241,0.38)',fontVariant:['tabular-nums'],marginTop:3}}>H = {H.toFixed(3)}</Text>
-          </View>
-        </View>
-        <Spark data={hist.slice(-60)} color={isUp?C.grnL:C.redL} height={50}/>
-        <View style={{flexDirection:'row',justifyContent:'space-between',marginTop:8}}>
-          {tfs.map(t=>(
-            <TouchableOpacity key={t} onPress={()=>setTf(t)}
-              style={{paddingHorizontal:8,paddingVertical:4,borderRadius:7,backgroundColor:t===tf?'rgba(245,244,241,0.10)':'transparent'}}>
-              <Text style={{fontSize:10,fontWeight:t===tf?'700':'400',color:t===tf?'rgba(245,244,241,1)':'rgba(245,244,241,0.35)'}}>{t}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      {/* Quick Actions */}
-      <View style={{flexDirection:'row',gap:8,marginBottom:16}}>
+      {/* 3-column metric cards */}
+      <View style={{flexDirection:'row',gap:10,marginBottom:16}}>
         {[
-          {id:'chart',lbl:'CHART',icon:'📊'},
-          {id:'waves',lbl:'WAVE',icon:'〰'},
-          {id:'ai',lbl:'AI',icon:'◈'},
-          {id:'analytics',lbl:'ANA',icon:'▦'},
-          {id:'watchlist',lbl:'WATCH',icon:'◉'},
-        ].map(a=>(
-          <TouchableOpacity key={a.id} onPress={()=>setPage(a.id)}
-            style={[{flex:1,alignItems:'center',justifyContent:'center',paddingVertical:12,backgroundColor:C.card,borderRadius:16,borderWidth:1,borderColor:C.bord},shadowSm]}>
-            <Text style={{fontSize:18,marginBottom:4}}>{a.icon}</Text>
-            <Text style={{fontSize:8,fontWeight:'700',color:C.d2,letterSpacing:1}}>{a.lbl}</Text>
+          {lbl:'CURRENT PHASE',val:phase,valSize:36},
+          {lbl:'MEAN DEVIATION',val:meanDev,valSize:28},
+          {lbl:'EQUILIBRIUM',val:eqStatus,valSize:16,valColor:eqColor},
+        ].map(card=>(
+          <View key={card.lbl} style={[{flex:1,borderRadius:22,backgroundColor:C.bg2,padding:16,
+            shadowColor:'#0a0808',shadowOffset:{width:5,height:5},shadowOpacity:0.12,shadowRadius:12,elevation:5},]}>
+            <Text style={{fontSize:8,letterSpacing:2,color:C.d3,marginBottom:10,textTransform:'uppercase'}}>{card.lbl}</Text>
+            <Text style={{fontFamily:'Georgia',fontStyle:'italic',fontSize:card.valSize,color:card.valColor||C.dark,lineHeight:card.valSize*1.1}}>{card.val}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* Bezier line chart */}
+      <View style={[{borderRadius:22,backgroundColor:C.bg2,padding:12,marginBottom:24,
+        shadowColor:'#0a0808',shadowOffset:{width:5,height:5},shadowOpacity:0.12,shadowRadius:12,elevation:5}]}>
+        <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+          <Text style={{fontSize:8,letterSpacing:2,color:C.d3,textTransform:'uppercase'}}>{sym.sub} · Price Path</Text>
+          <Text style={{fontSize:8,letterSpacing:1,color:C.d3,fontFamily:'Georgia',fontStyle:'italic'}}>{fmt(price)}</Text>
+        </View>
+        <Svg width={chartW-8} height={chartH}>
+          <Defs>
+            <LinearGradient id="dg" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0%" stopColor={C.d2} stopOpacity="0.18"/>
+              <Stop offset="100%" stopColor={C.d2} stopOpacity="0"/>
+            </LinearGradient>
+          </Defs>
+          {chartPath?<>
+            <Path d={chartPath+' L'+(chartW-8)+' '+(chartH-12)+' L0 '+(chartH-12)+' Z'} fill="url(#dg)"/>
+            <Path d={chartPath} fill="none" stroke={C.d2} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"/>
+          </>:null}
+          {/* LQ lines */}
+          {[{v:sym.upper,c:C.red,lbl:'LQ'},{v:sym.middle,c:C.gld,lbl:'EQ'},{v:sym.lower,c:C.blu,lbl:'SUP'}].map(ln=>{
+            const mn2=Math.min(...sparseHist),mx2=Math.max(...sparseHist),rng2=mx2-mn2||1;
+            const y=(chartH-12)-((ln.v-mn2)/rng2)*(chartH-12)*0.80-(chartH-12)*0.10;
+            if(y<0||y>chartH)return null;
+            return<G key={ln.lbl}>
+              <Line x1="0" y1={y} x2={chartW-8} y2={y} stroke={ln.c} strokeWidth="0.8" strokeDasharray="4,3" opacity="0.55"/>
+              <SvgText x={chartW-10} y={y-2} fill={ln.c} fontSize="6.5" textAnchor="end" fontWeight="700">{ln.lbl}</SvgText>
+            </G>;
+          })}
+        </Svg>
+      </View>
+
+      {/* Library title */}
+      <Text style={{fontFamily:'Georgia',fontStyle:'italic',fontSize:24,color:C.dark,letterSpacing:1,marginBottom:14}}>Library</Text>
+
+      {/* Book cards grid */}
+      <View style={{flexDirection:'row',flexWrap:'wrap',gap:10,marginBottom:8}}>
+        {books.map((b,i)=>(
+          <TouchableOpacity key={i}
+            onPress={()=>i===0?setPage('chart'):i===1?setPage('ai'):i===2?setPage('ai'):setPage('ai')}
+            activeOpacity={0.80}
+            style={[{width:(W-42)/2,height:160,borderRadius:18,overflow:'hidden',
+              shadowColor:'#0a0808',shadowOffset:{width:5,height:5},shadowOpacity:0.18,shadowRadius:12,elevation:6}]}>
+            <View style={{flex:1,backgroundColor:b.color,padding:16,justifyContent:'space-between'}}>
+              <View style={{width:28,height:4,backgroundColor:b.accent,borderRadius:2,opacity:0.9}}/>
+              <View>
+                <Text style={{fontSize:8,color:'rgba(245,244,241,0.5)',letterSpacing:2,marginBottom:5}}>{b.sub}</Text>
+                <Text style={{fontFamily:'Georgia',fontStyle:'italic',fontSize:17,color:'#F5F4F1',letterSpacing:0.5}}>{b.label}</Text>
+              </View>
+            </View>
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* Channel levels */}
-      <Card>
+      {/* LQ Channel levels strip */}
+      <View style={[{borderRadius:18,backgroundColor:C.bg2,padding:14,marginTop:10,
+        shadowColor:'#0a0808',shadowOffset:{width:4,height:4},shadowOpacity:0.10,shadowRadius:10,elevation:4}]}>
         <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-          <Text style={{fontSize:9,fontWeight:'700',color:C.d3,letterSpacing:2,textTransform:'uppercase'}}>LQ Channel</Text>
-          <Text style={{fontSize:9,fontWeight:'700',color:C.blu,letterSpacing:1}}>{calibStatus}</Text>
+          <Text style={{fontSize:8,letterSpacing:2,color:C.d3,textTransform:'uppercase'}}>LQ Channel</Text>
+          <Text style={{fontSize:8,color:C.blu,letterSpacing:1,fontWeight:'700'}}>{calibStatus}</Text>
         </View>
-        {[{l:'LQ UPPER',v:sym.upper,c:C.red},{l:'EQUILIBRIUM μ',v:sym.middle,c:C.gld},{l:'SUPPORT',v:sym.lower,c:C.blu}].map((row,i,arr)=>(
-          <View key={row.l} style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingVertical:10,borderBottomWidth:i<arr.length-1?1:0,borderBottomColor:C.bord}}>
-            <Text style={{fontSize:11,color:C.d2}}>{row.l}</Text>
-            <Text style={{fontSize:13,fontWeight:'700',color:row.c,fontVariant:['tabular-nums']}}>{fmt(row.v)}</Text>
-          </View>
-        ))}
-      </Card>
+        <View style={{flexDirection:'row',gap:8}}>
+          {[{lbl:'UPPER',v:sym.upper,c:C.red},{lbl:'EQUIL.',v:sym.middle,c:C.gld},{lbl:'SUPPORT',v:sym.lower,c:C.blu}].map(row=>(
+            <View key={row.lbl} style={{flex:1,alignItems:'center',backgroundColor:C.bg,borderRadius:12,paddingVertical:10,borderWidth:1,borderColor:C.bord}}>
+              <Text style={{fontSize:7,letterSpacing:1.5,color:C.d3,marginBottom:5,textTransform:'uppercase'}}>{row.lbl}</Text>
+              <Text style={{fontFamily:'Georgia',fontStyle:'italic',fontSize:11,color:row.c,fontVariant:['tabular-nums']}}>{fmt(row.v)}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
 
-      {/* AI Signal */}
-      <Card>
-        <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
-          <Text style={{fontSize:11,fontWeight:'700',color:C.dark,letterSpacing:1,textTransform:'uppercase'}}>AI Signal</Text>
-          <Inset><View style={{flexDirection:'row',alignItems:'center',gap:5,paddingHorizontal:10,paddingVertical:4}}>
-            <View style={{width:5,height:5,borderRadius:3,backgroundColor:C.grnL}}/>
-            <Text style={{fontSize:9,fontWeight:'700',color:C.grn}}>LIVE</Text>
-          </View></Inset>
-        </View>
-        {[
-          {l:'Regime',v:regime,c:rColor},
-          {l:'Z-Score',v:(z>=0?'+':'')+z.toFixed(2)+' σ',c:Math.abs(z)>2?C.red:Math.abs(z)>1?C.gld:C.grn},
-          {l:'Hurst H',v:'H = '+H.toFixed(3),c:C.dark},
-        ].map((row,i,arr)=>(
-          <View key={row.l} style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingVertical:10,borderBottomWidth:i<arr.length-1?1:0,borderBottomColor:C.bord}}>
-            <Text style={{fontSize:11,color:C.d2}}>{row.l}</Text>
-            <Text style={{fontSize:12,fontWeight:'700',color:row.c,fontVariant:['tabular-nums']}}>{row.v}</Text>
-          </View>
-        ))}
-      </Card>
-      <View style={{height:20}}/>
+      <View style={{height:24}}/>
     </ScrollView>
   );
 }
